@@ -227,13 +227,18 @@ private:
         streamer.reset();
     }
 
-    // Issue 1: use member bufSize instead of recomputing
     void worker() {
         uhd::rx_metadata_t meta;
         try {
             while (true) {
                 int len = streamer->recv(stream.writeBuf, bufSize, meta, 1.0);
-                if (len <= 0) break;
+                if (len < 0) break;
+                if (len == 0) {
+                    flog::warn("X411: recv returned 0 (error_code={})", (int)meta.error_code);
+                    continue;
+                }
+                if (meta.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW)
+                    flog::warn("X411: overflow — DSP pipeline too slow for {:.2f} Msps", sampleRate / 1e6);
                 if (!stream.swap(len)) break;
             }
         } catch (const std::exception& e) {
