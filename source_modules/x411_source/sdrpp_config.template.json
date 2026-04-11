@@ -47,9 +47,17 @@
             "enabled": true,
             "module": "audio_sink"
         },
+        "File Source": {
+            "enabled": true,
+            "module": "file_source"
+        },
         "Radio": {
             "enabled": true,
             "module": "radio"
+        },
+        "Recorder": {
+            "enabled": true,
+            "module": "recorder"
         },
         "X411 Source": {
             "enabled": true,
