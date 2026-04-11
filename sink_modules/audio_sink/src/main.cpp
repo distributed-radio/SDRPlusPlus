@@ -262,8 +262,8 @@ private:
     std::string sampleRatesTxt;
     unsigned int sampleRate = 48000;
 
-#ifdef __LINUX_PULSE__
-    RtAudio audio{RtAudio::LINUX_PULSE};
+#ifdef __LINUX_ALSA__
+    RtAudio audio{RtAudio::LINUX_ALSA};
 #else
     RtAudio audio;
 #endif
