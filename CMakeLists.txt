@@ -37,6 +37,7 @@ option(OPT_BUILD_SPECTRAN_SOURCE "Build Spectran Source Module (Dependencies: Aa
 option(OPT_BUILD_SPECTRAN_HTTP_SOURCE "Build Spectran HTTP Source Module (no dependencies required)" ON)
 option(OPT_BUILD_SPYSERVER_SOURCE "Build SpyServer Source Module (no dependencies required)" ON)
 option(OPT_BUILD_USRP_SOURCE "Build USRP Source Module (libuhd)" OFF)
+option(OPT_BUILD_X411_SOURCE "Build X411 Source Module (requires /opt/uhd-x411/)" OFF)
 
 # Sinks
 option(OPT_BUILD_ANDROID_AUDIO_SINK "Build Android Audio Sink Module (Dependencies: AAudio, only for android)" OFF)
@@ -239,6 +240,10 @@ endif (OPT_BUILD_SPYSERVER_SOURCE)
 if (OPT_BUILD_USRP_SOURCE)
 add_subdirectory("source_modules/usrp_source")
 endif (OPT_BUILD_USRP_SOURCE)
+
+if (OPT_BUILD_X411_SOURCE)
+add_subdirectory("source_modules/x411_source")
+endif (OPT_BUILD_X411_SOURCE)
 
 
 # Sink modules
