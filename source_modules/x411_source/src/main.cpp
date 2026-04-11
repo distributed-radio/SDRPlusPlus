@@ -259,6 +259,8 @@ private:
             config.release(true);
         }
 
+        if (_this->running) SmGui::EndDisabled();
+
         SmGui::FillWidth();
         SmGui::ForceSync();
         if (SmGui::Button(CONCAT("Refresh##x411_", _this->name))) {
@@ -267,6 +269,8 @@ private:
         }
         SmGui::SameLine();
         SmGui::Text(_this->deviceFound ? "Device OK" : "Device not found");
+
+        if (_this->running) SmGui::BeginDisabled();
 
         SmGui::LeftLabel("Sample rate");
         SmGui::FillWidth();
