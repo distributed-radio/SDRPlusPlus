@@ -1,0 +1,76 @@
+{
+    "bandColors": {
+        "amateur": "#FF0000FF",
+        "aviation": "#00FF00FF",
+        "broadcast": "#0000FFFF",
+        "marine": "#00FFFFFF",
+        "military": "#FFFF00FF"
+    },
+    "bandPlan": "General",
+    "bandPlanEnabled": true,
+    "bandPlanPos": 0,
+    "centerTuning": false,
+    "colorMap": "Classic",
+    "decimation": 1,
+    "fastFFT": false,
+    "fftHeight": 300,
+    "fftHold": false,
+    "fftHoldSpeed": 60,
+    "fftRate": 20,
+    "fftSize": 32768,
+    "fftSmoothing": false,
+    "fftSmoothingSpeed": 60,
+    "fftWindow": 0,
+    "frequency": 806000000.0,
+    "fullWaterfallUpdate": false,
+    "fullscreen": false,
+    "invertIQ": false,
+    "iqCorrection": false,
+    "lockMenuOrder": false,
+    "manualOffset": 0.0,
+    "max": -50.0,
+    "maximized": false,
+    "menuElements": [
+        {
+            "name": "Source",
+            "open": true
+        },
+        {
+            "name": "Sinks",
+            "open": false
+        }
+    ],
+    "menuWidth": 300,
+    "min": -120.0,
+    "moduleInstances": {
+        "Audio Sink": {
+            "enabled": true,
+            "module": "audio_sink"
+        },
+        "X411 Source": {
+            "enabled": true,
+            "module": "x411_source"
+        }
+    },
+    "modules": [
+        "/usr/lib/sdrpp/plugins/x411_source.so"
+    ],
+    "modulesDirectory": "./modules",
+    "offsets": {},
+    "resourcesDirectory": "./res",
+    "selectedOffset": "None",
+    "showMenu": true,
+    "showWaterfall": true,
+    "snrSmoothing": false,
+    "snrSmoothingSpeed": 60,
+    "source": "X411",
+    "streams": {},
+    "theme": "Dark",
+    "uiScale": 1.0,
+    "vfoColors": {},
+    "vfoOffsets": {},
+    "windowSize": {
+        "h": 1080,
+        "w": 1920
+    }
+}
