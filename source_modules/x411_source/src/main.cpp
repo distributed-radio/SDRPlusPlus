@@ -171,25 +171,24 @@ private:
         flog::info("X411SourceModule '{}': Stop", _this->name);
     }
 
-    // Issue 3: mutex for PLL retune path, null check for NCO path
+    // Issue 3: hold streamMtx across entire tune() to eliminate NCO/stop race
     static void tune(double freq, void* ctx) {
         X411SourceModule* _this = (X411SourceModule*)ctx;
+        std::lock_guard<std::mutex> lock(_this->streamMtx);
+
         _this->freq = freq;
         if (!_this->running) return;
 
         double delta = freq - _this->rfLo;
         if (std::fabs(delta) <= NCO_RANGE) {
-            // NCO-only: no mutex needed, no stream interruption
-            if (!_this->dev) return;   // null check
+            // NCO-only retune — instantaneous
             uhd::tune_request_t tr(freq);
             tr.rf_freq         = _this->rfLo;
             tr.rf_freq_policy  = uhd::tune_request_t::POLICY_MANUAL;
             tr.dsp_freq_policy = uhd::tune_request_t::POLICY_AUTO;
             _this->dev->set_rx_freq(tr, 0);
         } else {
-            // PLL retune: hold mutex across stop/retune/start
-            std::lock_guard<std::mutex> lock(_this->streamMtx);
-            if (!_this->running) return;   // re-check after acquiring
+            // PLL retune: stop stream, retune, restart
             _this->stopStream();
             uhd::tune_result_t result = _this->dev->set_rx_freq(freq, 0);
             _this->rfLo = result.actual_rf_freq;
