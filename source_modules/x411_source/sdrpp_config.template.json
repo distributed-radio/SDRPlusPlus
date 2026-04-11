@@ -47,6 +47,10 @@
             "enabled": true,
             "module": "audio_sink"
         },
+        "Radio": {
+            "enabled": true,
+            "module": "radio"
+        },
         "X411 Source": {
             "enabled": true,
             "module": "x411_source"
