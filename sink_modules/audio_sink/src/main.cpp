@@ -88,6 +88,7 @@ public:
     }
 
     void selectFirst() {
+        if (devList.empty()) { return; }
         selectById(defaultDevId);
     }
 
@@ -102,6 +103,7 @@ public:
     }
 
     void selectById(int id) {
+        if (devList.empty()) { return; }
         devId = id;
         bool created = false;
         config.acquire();
@@ -144,6 +146,11 @@ public:
     void menuHandler() {
         float menuWidth = ImGui::GetContentRegionAvail().x;
 
+        if (devList.empty()) {
+            ImGui::TextUnformatted("No audio output devices found");
+            return;
+        }
+
         ImGui::SetNextItemWidth(menuWidth);
         if (ImGui::Combo(("##_audio_sink_dev_" + _streamName).c_str(), &devId, txtDevList.c_str())) {
             selectById(devId);
@@ -184,6 +191,10 @@ public:
 
 private:
     bool doStart() {
+        if (devList.empty()) {
+            flog::error("AudioSinkModule: No audio output devices found, cannot start");
+            return false;
+        }
         RtAudio::StreamParameters parameters;
         parameters.deviceId = deviceIds[devId];
         parameters.nChannels = 2;
@@ -251,7 +262,11 @@ private:
     std::string sampleRatesTxt;
     unsigned int sampleRate = 48000;
 
+#ifdef __LINUX_PULSE__
+    RtAudio audio{RtAudio::LINUX_PULSE};
+#else
     RtAudio audio;
+#endif
 };
 
 class AudioSinkModule : public ModuleManager::Instance {
