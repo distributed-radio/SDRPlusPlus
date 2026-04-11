@@ -9,6 +9,7 @@
 #include <utils/optionlist.h>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <thread>
+#include <mutex>
 #include <cmath>
 #include <cstring>
 
@@ -134,8 +135,10 @@ private:
         flog::info("X411SourceModule '{}': Menu Deselect", ((X411SourceModule*)ctx)->name);
     }
 
+    // Issue 2 + Issue 3: device leak fix and mutex protection
     static void start(void* ctx) {
         X411SourceModule* _this = (X411SourceModule*)ctx;
+        std::lock_guard<std::mutex> lock(_this->streamMtx);
         if (_this->running) return;
 
         _this->dev = _this->tryConnect();
@@ -144,14 +147,23 @@ private:
             return;
         }
 
-        _this->applySettings();
-        _this->startStream();
+        try {
+            _this->applySettings();
+            _this->startStream();
+        } catch (const std::exception& e) {
+            flog::error("X411: start failed: {}", e.what());
+            _this->dev.reset();
+            return;
+        }
+
         _this->running = true;
         flog::info("X411SourceModule '{}': Start", _this->name);
     }
 
+    // Issue 3: mutex protection for stop
     static void stop(void* ctx) {
         X411SourceModule* _this = (X411SourceModule*)ctx;
+        std::lock_guard<std::mutex> lock(_this->streamMtx);
         if (!_this->running) return;
         _this->running = false;
         _this->stopStream();
@@ -159,6 +171,7 @@ private:
         flog::info("X411SourceModule '{}': Stop", _this->name);
     }
 
+    // Issue 3: mutex for PLL retune path, null check for NCO path
     static void tune(double freq, void* ctx) {
         X411SourceModule* _this = (X411SourceModule*)ctx;
         _this->freq = freq;
@@ -166,14 +179,17 @@ private:
 
         double delta = freq - _this->rfLo;
         if (std::fabs(delta) <= NCO_RANGE) {
-            // NCO-only: instantaneous, no stream interruption
+            // NCO-only: no mutex needed, no stream interruption
+            if (!_this->dev) return;   // null check
             uhd::tune_request_t tr(freq);
             tr.rf_freq         = _this->rfLo;
             tr.rf_freq_policy  = uhd::tune_request_t::POLICY_MANUAL;
             tr.dsp_freq_policy = uhd::tune_request_t::POLICY_AUTO;
             _this->dev->set_rx_freq(tr, 0);
         } else {
-            // PLL retune: stop stream, retune, restart
+            // PLL retune: hold mutex across stop/retune/start
+            std::lock_guard<std::mutex> lock(_this->streamMtx);
+            if (!_this->running) return;   // re-check after acquiring
             _this->stopStream();
             uhd::tune_result_t result = _this->dev->set_rx_freq(freq, 0);
             _this->rfLo = result.actual_rf_freq;
@@ -190,7 +206,9 @@ private:
         rfLo = result.actual_rf_freq;
     }
 
+    // Issue 1: compute and cap bufSize before spawning worker
     void startStream() {
+        bufSize = std::min((int)(sampleRate / 200), STREAM_BUFFER_SIZE);
         uhd::stream_args_t sargs;
         sargs.channels   = {0};
         sargs.cpu_format = "fc32";
@@ -210,8 +228,8 @@ private:
         streamer.reset();
     }
 
+    // Issue 1: use member bufSize instead of recomputing
     void worker() {
-        int bufSize = (int)(sampleRate / 200);
         uhd::rx_metadata_t meta;
         try {
             while (true) {
@@ -263,9 +281,12 @@ private:
 
         SmGui::FillWidth();
         SmGui::ForceSync();
+        // Issue 4: guard Refresh against double-claim while streaming
         if (SmGui::Button(CONCAT("Refresh##x411_", _this->name))) {
-            auto probe = _this->tryConnect();
-            _this->deviceFound = (probe != nullptr);
+            if (!_this->running) {
+                auto probe = _this->tryConnect();
+                _this->deviceFound = (probe != nullptr);
+            }
         }
         SmGui::SameLine();
         SmGui::Text(_this->deviceFound ? "Device OK" : "Device not found");
@@ -316,6 +337,10 @@ private:
     char mgmtAddrBuf[64]   = "192.168.7.162";
     char dataAddrBuf[64]   = "192.168.200.2";
     char secondAddrBuf[64] = "192.168.201.2";
+
+    // Issue 1 + Issue 3: new member variables
+    std::mutex streamMtx;
+    int bufSize = 0;
 
     dsp::stream<dsp::complex_t> stream;
     SourceManager::SourceHandler handler;
