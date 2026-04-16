@@ -89,6 +89,13 @@ public:
         }
         config.release();
 
+        // Seed clock source list with known options so dropdown is never empty
+        clockSources.define("mboard", "Mboard", "mboard");
+        clockSources.define("external", "External", "external");
+        if (clockSources.keyExists(clockSource)) {
+            csId = clockSources.keyId(clockSource);
+        }
+
         // Sync text buffers
         strncpy(mgmtAddrBuf,   mgmtAddr.c_str(),   sizeof(mgmtAddrBuf)   - 1);
         strncpy(dataAddrBuf,   dataAddr.c_str(),   sizeof(dataAddrBuf)   - 1);
