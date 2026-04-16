@@ -83,6 +83,9 @@ public:
             int sd = config.conf["subdev"].get<int>();
             if (sd >= 0 && sd < N_SUBDEVS) subdevId = sd;
         }
+        if (config.conf.contains("clock_source")) {
+            clockSource = config.conf["clock_source"].get<std::string>();
+        }
         config.release();
 
         // Sync text buffers
@@ -147,6 +150,24 @@ private:
             return;
         }
 
+        // Populate clock sources from device, filtering out gpsdo
+        _this->clockSources.clear();
+        try {
+            auto sources = _this->dev->get_clock_sources(0);
+            for (const auto& s : sources) {
+                if (s == "gpsdo") continue;
+                std::string label = s;
+                label[0] = std::toupper(label[0]);
+                _this->clockSources.define(s, label, s);
+            }
+            if (_this->clockSources.keyExists(_this->clockSource)) {
+                _this->csId = _this->clockSources.keyId(_this->clockSource);
+            }
+        } catch (const std::exception& e) {
+            flog::warn("X411: failed to query clock sources: {}", e.what());
+            _this->clockSources.define("mboard", "Mboard", "mboard");
+        }
+
         try {
             _this->applySettings();
             _this->startStream();
@@ -200,7 +221,7 @@ private:
     void applySettings() {
         dev->set_rx_subdev_spec(uhd::usrp::subdev_spec_t(SUBDEVS[subdevId].spec), 0);
         dev->set_rx_rate(sampleRate, 0);
-        dev->set_clock_source("internal");
+        dev->set_clock_source(clockSource);
         uhd::tune_result_t result = dev->set_rx_freq(freq, 0);
         rfLo = result.actual_rf_freq;
     }
@@ -320,6 +341,22 @@ private:
         }
 
         if (_this->running) SmGui::EndDisabled();
+
+        // Clock source — changeable while running (LMK04208 re-locks without reset)
+        if (_this->clockSources.size() > 1) {
+            SmGui::LeftLabel("Clock");
+            SmGui::FillWidth();
+            if (SmGui::Combo(CONCAT("##x411_clk_", _this->name),
+                             &_this->csId, _this->clockSources.txt)) {
+                _this->clockSource = _this->clockSources.key(_this->csId);
+                if (_this->running) {
+                    _this->dev->set_clock_source(_this->clockSource);
+                }
+                config.acquire();
+                config.conf["clock_source"] = _this->clockSource;
+                config.release(true);
+            }
+        }
     }
 
     std::string name;
@@ -331,6 +368,9 @@ private:
     double rfLo      = 0.0;
     int srId         = 3;    // 30.72 Msps default
     int subdevId     = 0;    // A:0 (J4) default
+    std::string clockSource = "mboard";
+    int csId = 0;
+    OptionList<std::string, std::string> clockSources;
 
     std::string mgmtAddr   = "192.168.7.162";
     std::string dataAddr   = "192.168.200.2";
@@ -365,6 +405,7 @@ MOD_EXPORT void _INIT_() {
     def["recv_buff_size"]  = 33554432;
     def["samplerate"]      = (int)(30.72e6);
     def["subdev"]          = 0;
+    def["clock_source"]    = "mboard";
 
     config.setPath(core::args["root"].s() + "/x411_config.json");
     config.load(def);
