@@ -129,6 +129,26 @@ private:
         }
     }
 
+    void populateClockSources(uhd::usrp::multi_usrp::sptr device) {
+        clockSources.clear();
+        csId = 0;
+        try {
+            auto sources = device->get_clock_sources(0);
+            for (const auto& s : sources) {
+                if (s == "gpsdo" || s.empty()) continue;
+                std::string label = s;
+                label[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(label[0])));
+                clockSources.define(s, label, s);
+            }
+            if (clockSources.keyExists(clockSource)) {
+                csId = clockSources.keyId(clockSource);
+            }
+        } catch (const std::exception& e) {
+            flog::warn("X411: failed to query clock sources: {}", e.what());
+            clockSources.define("mboard", "Mboard", "mboard");
+        }
+    }
+
     static void menuSelected(void* ctx) {
         X411SourceModule* _this = (X411SourceModule*)ctx;
         core::setInputSampleRate(_this->sampleRate);
@@ -151,24 +171,7 @@ private:
             return;
         }
 
-        // Populate clock sources from device, filtering out gpsdo
-        _this->clockSources.clear();
-        _this->csId = 0;
-        try {
-            auto sources = _this->dev->get_clock_sources(0);
-            for (const auto& s : sources) {
-                if (s == "gpsdo" || s.empty()) continue;
-                std::string label = s;
-                label[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(label[0])));
-                _this->clockSources.define(s, label, s);
-            }
-            if (_this->clockSources.keyExists(_this->clockSource)) {
-                _this->csId = _this->clockSources.keyId(_this->clockSource);
-            }
-        } catch (const std::exception& e) {
-            flog::warn("X411: failed to query clock sources: {}", e.what());
-            _this->clockSources.define("mboard", "Mboard", "mboard");
-        }
+        _this->populateClockSources(_this->dev);
 
         try {
             _this->applySettings();
@@ -338,6 +341,9 @@ private:
             if (!_this->running) {
                 auto probe = _this->tryConnect();
                 _this->deviceFound = (probe != nullptr);
+                if (probe) {
+                    _this->populateClockSources(probe);
+                }
             }
         }
         SmGui::SameLine();
@@ -367,38 +373,28 @@ private:
             config.release(true);
         }
 
-        if (_this->running) SmGui::EndDisabled();
-
-        // Clock source — changeable while running (LMK04208 re-locks without reset)
-        if (_this->clockSources.size() > 1) {
-            SmGui::LeftLabel("Clock");
-            SmGui::FillWidth();
-            SmGui::ForceSync();
-            if (SmGui::Combo(CONCAT("##x411_clk_", _this->name),
-                             &_this->csId, _this->clockSources.txt)) {
-                _this->clockSource = _this->clockSources.key(_this->csId);
-                if (_this->running) {
-                    std::lock_guard<std::mutex> lock(_this->streamMtx);
-                    _this->dev->set_clock_source(_this->clockSource);
-                    flog::info("X411: clock source set to {}", _this->clockSource);
-                }
-                config.acquire();
-                config.conf["clock_source"] = _this->clockSource;
-                config.release(true);
-            }
+        SmGui::LeftLabel("Clock");
+        SmGui::FillWidth();
+        SmGui::ForceSync();
+        if (SmGui::Combo(CONCAT("##x411_clk_", _this->name),
+                         &_this->csId, _this->clockSources.txt)) {
+            _this->clockSource = _this->clockSources.key(_this->csId);
+            config.acquire();
+            config.conf["clock_source"] = _this->clockSource;
+            config.release(true);
         }
 
+        if (_this->running) SmGui::EndDisabled();
+
         // Ref lock indicator
-        {
-            SmGui::SameLine();
-            int status = _this->sensorStatus.load();
-            if (status == 1) {
-                SmGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "LOCKED");
-            } else if (status == 2) {
-                SmGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "UNLOCKED");
-            } else {
-                SmGui::Text("---");
-            }
+        SmGui::LeftLabel("Ref lock");
+        int status = _this->sensorStatus.load();
+        if (status == 1) {
+            SmGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "LOCKED");
+        } else if (status == 2) {
+            SmGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "UNLOCKED");
+        } else {
+            SmGui::Text("---");
         }
     }
 
