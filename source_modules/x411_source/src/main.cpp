@@ -8,6 +8,7 @@
 #include <gui/smgui.h>
 #include <utils/optionlist.h>
 #include <uhd/usrp/multi_usrp.hpp>
+#include <atomic>
 #include <thread>
 #include <mutex>
 #include <cmath>
@@ -238,9 +239,14 @@ private:
         streamer->issue_stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
         stream.clearWriteStop();
         workerThread = std::thread(&X411SourceModule::worker, this);
+        sensorRunning.store(true);
+        sensorThread = std::thread(&X411SourceModule::sensorWorker, this);
     }
 
     void stopStream() {
+        sensorRunning.store(false);
+        if (sensorThread.joinable()) sensorThread.join();
+        sensorStatus.store(0);
         stream.stopWriter();
         if (streamer)
             streamer->issue_stream_cmd(uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
@@ -265,6 +271,26 @@ private:
             }
         } catch (const std::exception& e) {
             flog::error("X411: recv error: {}", e.what());
+        }
+    }
+
+    void sensorWorker() {
+        bool warnedOnce = false;
+        while (sensorRunning.load()) {
+            try {
+                auto sensor = dev->get_mboard_sensor("ref_locked", 0);
+                sensorStatus.store(sensor.to_bool() ? 1 : 2);
+            } catch (const std::exception& e) {
+                if (!warnedOnce) {
+                    flog::warn("X411: ref_locked sensor read failed: {}", e.what());
+                    warnedOnce = true;
+                }
+                sensorStatus.store(-1);
+            }
+            // Sleep ~1 second in 100ms increments so we can exit promptly
+            for (int i = 0; i < 10 && sensorRunning.load(); i++) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
         }
     }
 
@@ -361,6 +387,19 @@ private:
                 config.release(true);
             }
         }
+
+        // Ref lock indicator
+        {
+            SmGui::SameLine();
+            int status = _this->sensorStatus.load();
+            if (status == 1) {
+                SmGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "LOCKED");
+            } else if (status == 2) {
+                SmGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "UNLOCKED");
+            } else {
+                SmGui::Text("---");
+            }
+        }
     }
 
     std::string name;
@@ -375,6 +414,9 @@ private:
     std::string clockSource = "mboard";
     int csId = 0;
     OptionList<std::string, std::string> clockSources;
+    std::atomic<int> sensorStatus{0};  // 0=unknown, 1=locked, 2=unlocked, -1=error
+    std::atomic<bool> sensorRunning{false};
+    std::thread sensorThread;
 
     std::string mgmtAddr   = "192.168.7.162";
     std::string dataAddr   = "192.168.200.2";
