@@ -24,7 +24,7 @@ ConfigManager config;
 
 class AudioSink : SinkManager::Sink {
 public:
-    AudioSink(SinkManager::Stream* stream, std::string streamName) {
+    AudioSink(SinkManager::Stream* stream, std::string streamName) : audio(RtAudio::LINUX_ALSA) {
         _stream = stream;
         _streamName = streamName;
         s2m.init(_stream->sinkOut);
@@ -262,11 +262,7 @@ private:
     std::string sampleRatesTxt;
     unsigned int sampleRate = 48000;
 
-#ifdef __LINUX_ALSA__
-    RtAudio audio{RtAudio::LINUX_ALSA};
-#else
     RtAudio audio;
-#endif
 };
 
 class AudioSinkModule : public ModuleManager::Instance {
