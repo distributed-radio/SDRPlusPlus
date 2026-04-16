@@ -152,12 +152,13 @@ private:
 
         // Populate clock sources from device, filtering out gpsdo
         _this->clockSources.clear();
+        _this->csId = 0;
         try {
             auto sources = _this->dev->get_clock_sources(0);
             for (const auto& s : sources) {
-                if (s == "gpsdo") continue;
+                if (s == "gpsdo" || s.empty()) continue;
                 std::string label = s;
-                label[0] = std::toupper(label[0]);
+                label[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(label[0])));
                 _this->clockSources.define(s, label, s);
             }
             if (_this->clockSources.keyExists(_this->clockSource)) {
@@ -346,11 +347,14 @@ private:
         if (_this->clockSources.size() > 1) {
             SmGui::LeftLabel("Clock");
             SmGui::FillWidth();
+            SmGui::ForceSync();
             if (SmGui::Combo(CONCAT("##x411_clk_", _this->name),
                              &_this->csId, _this->clockSources.txt)) {
                 _this->clockSource = _this->clockSources.key(_this->csId);
                 if (_this->running) {
+                    std::lock_guard<std::mutex> lock(_this->streamMtx);
                     _this->dev->set_clock_source(_this->clockSource);
+                    flog::info("X411: clock source set to {}", _this->clockSource);
                 }
                 config.acquire();
                 config.conf["clock_source"] = _this->clockSource;
