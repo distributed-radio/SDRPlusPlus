@@ -32,7 +32,7 @@ struct DeviceInfo {
 
 class AudioSourceModule : public ModuleManager::Instance {
 public:
-    AudioSourceModule(std::string name) {
+    AudioSourceModule(std::string name) : audio(RtAudio::LINUX_ALSA) {
         this->name = name;
 
 #if RTAUDIO_VERSION_MAJOR >= 6
