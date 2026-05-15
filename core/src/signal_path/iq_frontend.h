@@ -9,6 +9,9 @@
 #include "../dsp/sink/handler_sink.h"
 #include "../dsp/math/conjugate.h"
 #include <fftw3.h>
+#ifdef SDRPP_USE_CUFFT
+#include "../dsp/cufft_backend.h"
+#endif
 
 class IQFrontEnd {
 public:
@@ -98,6 +101,9 @@ protected:
     float* fftWindowBuf;
     fftwf_complex *fftInBuf, *fftOutBuf;
     fftwf_plan fftwPlan;
+#ifdef SDRPP_USE_CUFFT
+    CuFFTState cufft;
+#endif
     float* fftDbOut;
 
     double effectiveSr;

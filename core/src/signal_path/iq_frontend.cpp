@@ -9,9 +9,15 @@ IQFrontEnd::~IQFrontEnd() {
     if (!_init) { return; }
     stop();
     dsp::buffer::free(fftWindowBuf);
+#ifdef SDRPP_USE_CUFFT
+    cufft_free(cufft);
+    cudaFreeHost(fftInBuf);
+    cudaFreeHost(fftOutBuf);
+#else
     fftwf_destroy_plan(fftwPlan);
     fftwf_free(fftInBuf);
     fftwf_free(fftOutBuf);
+#endif
 }
 
 void IQFrontEnd::init(dsp::stream<dsp::complex_t>* in, double sampleRate, bool buffering, int decimRatio, bool dcBlocking, int fftSize, double fftRate, FFTWindow fftWindow, float* (*acquireFFTBuffer)(void* ctx), void (*releaseFFTBuffer)(void* ctx), void* fftCtx) {
@@ -57,9 +63,15 @@ void IQFrontEnd::init(dsp::stream<dsp::complex_t>* in, double sampleRate, bool b
         for (int i = 0; i < _nzFFTSize; i++) { fftWindowBuf[i] = dsp::window::nuttall(i, _nzFFTSize); }
     }
 
+#ifdef SDRPP_USE_CUFFT
+    cudaHostAlloc((void**)&fftInBuf,  _fftSize * sizeof(fftwf_complex), cudaHostAllocDefault);
+    cudaHostAlloc((void**)&fftOutBuf, _fftSize * sizeof(fftwf_complex), cudaHostAllocDefault);
+    cufft_init(cufft, _fftSize);
+#else
     fftInBuf = (fftwf_complex*)fftwf_malloc(_fftSize * sizeof(fftwf_complex));
     fftOutBuf = (fftwf_complex*)fftwf_malloc(_fftSize * sizeof(fftwf_complex));
     fftwPlan = fftwf_plan_dft_1d(_fftSize, fftInBuf, fftOutBuf, FFTW_FORWARD, FFTW_ESTIMATE);
+#endif
 
     // Clear the rest of the FFT input buffer
     dsp::buffer::clear(fftInBuf, _fftSize - _nzFFTSize, _nzFFTSize);
@@ -252,7 +264,11 @@ void IQFrontEnd::handler(dsp::complex_t* data, int count, void* ctx) {
     volk_32fc_32f_multiply_32fc((lv_32fc_t*)_this->fftInBuf, (lv_32fc_t*)data, _this->fftWindowBuf, _this->_nzFFTSize);
 
     // Execute FFT
+#ifdef SDRPP_USE_CUFFT
+    cufft_execute_host(_this->cufft, _this->fftInBuf, _this->fftOutBuf);
+#else
     fftwf_execute(_this->fftwPlan);
+#endif
 
     // Aquire buffer
     float* fftBuf = _this->_acquireFFTBuffer(_this->_fftCtx);
@@ -291,11 +307,20 @@ void IQFrontEnd::updateFFTPath(bool updateWaterfall) {
     }
 
     // Update FFT plan
+#ifdef SDRPP_USE_CUFFT
+    cufft_free(cufft);
+    cudaFreeHost(fftInBuf);
+    cudaFreeHost(fftOutBuf);
+    cudaHostAlloc((void**)&fftInBuf,  _fftSize * sizeof(fftwf_complex), cudaHostAllocDefault);
+    cudaHostAlloc((void**)&fftOutBuf, _fftSize * sizeof(fftwf_complex), cudaHostAllocDefault);
+    cufft_init(cufft, _fftSize);
+#else
     fftwf_free(fftInBuf);
     fftwf_free(fftOutBuf);
     fftInBuf = (fftwf_complex*)fftwf_malloc(_fftSize * sizeof(fftwf_complex));
     fftOutBuf = (fftwf_complex*)fftwf_malloc(_fftSize * sizeof(fftwf_complex));
     fftwPlan = fftwf_plan_dft_1d(_fftSize, fftInBuf, fftOutBuf, FFTW_FORWARD, FFTW_ESTIMATE);
+#endif
 
     // Clear the rest of the FFT input buffer
     dsp::buffer::clear(fftInBuf, _fftSize - _nzFFTSize, _nzFFTSize);

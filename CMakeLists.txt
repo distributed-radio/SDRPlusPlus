@@ -39,6 +39,9 @@ option(OPT_BUILD_SPYSERVER_SOURCE "Build SpyServer Source Module (no dependencie
 option(OPT_BUILD_USRP_SOURCE "Build USRP Source Module (libuhd)" OFF)
 option(OPT_BUILD_X411_SOURCE "Build X411 Source Module (requires /opt/uhd-x411/)" OFF)
 
+# Optional GPU backends
+option(OPT_BUILD_CUFFT_BACKEND "Swap FFTW3F for cuFFT in IQFrontEnd (requires CUDA toolkit)" OFF)
+
 # Sinks
 option(OPT_BUILD_ANDROID_AUDIO_SINK "Build Android Audio Sink Module (Dependencies: AAudio, only for android)" OFF)
 option(OPT_BUILD_AUDIO_SINK "Build Audio Sink Module (Dependencies: rtaudio)" ON)

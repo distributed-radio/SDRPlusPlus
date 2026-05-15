@@ -149,6 +149,16 @@ else()
         ${LIBZSTD_LIBRARIES}
     )
 
+    # Optional cuFFT backend — swap the single FFT call site in
+    # iq_frontend.cpp from FFTW3F to cuFFT when the option is on.
+    # See core/src/dsp/cufft_backend.{h,cpp}.
+    if (OPT_BUILD_CUFFT_BACKEND)
+        find_package(CUDAToolkit REQUIRED)
+        target_link_libraries(sdrpp_core PUBLIC CUDA::cufft CUDA::cudart)
+        target_compile_definitions(sdrpp_core PUBLIC SDRPP_USE_CUFFT=1)
+        message(STATUS "Built with cuFFT backend")
+    endif()
+
     if (NOT USE_INTERNAL_LIBCORRECT)
         pkg_check_modules(CORRECT REQUIRED libcorrect)
         target_include_directories(sdrpp_core PUBLIC ${CORRECT_INCLUDE_DIRS})
